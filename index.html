@@ -200,7 +200,12 @@
             });
             return res.ok;
           } else {
-            if (composite <= existing[0].composite_score) return true;
+            if (correct < existing[0].correct_answers) return true;
+            if (
+              correct === existing[0].correct_answers &&
+              timeMs >= existing[0].time_ms
+            )
+              return true;
             const res = await fetch(
               `${SUPABASE_URL}/rest/v1/scores?user_id=eq.${userId}`,
               {
@@ -219,7 +224,7 @@
         },
         async getLeaderboard() {
           const res = await fetch(
-            `${SUPABASE_URL}/rest/v1/scores?select=username,correct_answers,time_ms,composite_score,played_at&order=composite_score.desc&limit=20`,
+            `${SUPABASE_URL}/rest/v1/scores?select=username,correct_answers,time_ms,composite_score,played_at&order=correct_answers.desc,time_ms.asc&limit=20`,
             { headers: sb.headers() },
           );
           return res.ok ? res.json() : [];
