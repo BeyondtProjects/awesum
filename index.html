@@ -2,12 +2,1333 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>awesum</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>aweSUM</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #0a0a0a;
+        color: #fff;
+        font-family: "Arial", sans-serif;
+        min-height: 100vh;
+      }
+      @keyframes burst {
+        0% {
+          transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0)
+            scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(-50%, -50%) rotate(var(--angle))
+            translateY(calc(-1 * var(--dist))) scale(0);
+          opacity: 0;
+        }
+      }
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        20% {
+          transform: translateX(-10px);
+        }
+        40% {
+          transform: translateX(10px);
+        }
+        60% {
+          transform: translateX(-8px);
+        }
+        80% {
+          transform: translateX(8px);
+        }
+      }
+      @keyframes correctPop {
+        0% {
+          transform: scale(1);
+        }
+        40% {
+          transform: scale(1.07);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      @keyframes scorePop {
+        0% {
+          transform: scale(1);
+          color: #fff;
+        }
+        50% {
+          transform: scale(1.4);
+          color: #ff3333;
+        }
+        100% {
+          transform: scale(1);
+          color: #fff;
+        }
+      }
+      @keyframes heartLost {
+        0% {
+          transform: scale(1);
+        }
+        30% {
+          transform: scale(1.4);
+        }
+        60% {
+          transform: scale(0.6);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      @keyframes pulseBtn {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 #ff333355;
+        }
+        50% {
+          box-shadow: 0 0 0 10px #ff333300;
+        }
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .shake {
+        animation: shake 0.5s ease-in-out;
+      }
+      .correct-pop {
+        animation: correctPop 0.4s ease-out;
+      }
+      .score-pop {
+        animation: scorePop 0.42s ease-out;
+        display: inline-block;
+      }
+      .heart-lost {
+        animation: heartLost 0.4s ease-out;
+      }
+      .pulse-btn {
+        animation: pulseBtn 2s infinite;
+      }
+      .fade-in {
+        animation: fadeIn 0.35s ease-out;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef, useCallback } = React;
+
+      // ─── SUPABASE CONFIG ─────────────────────────────────────────────────────
+      const SUPABASE_URL = "https://xbxdwogccyzfpbvjzxeo.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhieGR3b2djY3l6ZnBidmp6eGVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNTc0NDUsImV4cCI6MjA5MTkzMzQ0NX0.hK5sh9qL31-hSRxK0h6NJ-MQISodx8Wf59knAzV7N94";
+
+      const sb = {
+        headers: () => ({
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        }),
+        authHeaders: (token) => ({
+          "Content-Type": "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        }),
+        async signUp(username, password) {
+          const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+            method: "POST",
+            headers: sb.headers(),
+            body: JSON.stringify({
+              email: `${username.toLowerCase()}@awesum.game`,
+              password,
+              data: { username },
+            }),
+          });
+          return res.json();
+        },
+        async signIn(username, password) {
+          const res = await fetch(
+            `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
+            {
+              method: "POST",
+              headers: sb.headers(),
+              body: JSON.stringify({
+                email: `${username.toLowerCase()}@awesum.game`,
+                password,
+              }),
+            },
+          );
+          return res.json();
+        },
+        async upsertScore(token, userId, username, correct, timeMs, composite) {
+          const checkRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/scores?user_id=eq.${userId}&select=composite_score`,
+            { headers: sb.authHeaders(token) },
+          );
+          const existing = checkRes.ok ? await checkRes.json() : [];
+          if (existing.length === 0) {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
+              method: "POST",
+              headers: { ...sb.authHeaders(token), Prefer: "return=minimal" },
+              body: JSON.stringify({
+                user_id: userId,
+                username,
+                correct_answers: correct,
+                time_ms: timeMs,
+                composite_score: composite,
+                played_at: new Date().toISOString(),
+              }),
+            });
+            return res.ok;
+          } else {
+            if (composite <= existing[0].composite_score) return true;
+            const res = await fetch(
+              `${SUPABASE_URL}/rest/v1/scores?user_id=eq.${userId}`,
+              {
+                method: "PATCH",
+                headers: { ...sb.authHeaders(token), Prefer: "return=minimal" },
+                body: JSON.stringify({
+                  correct_answers: correct,
+                  time_ms: timeMs,
+                  composite_score: composite,
+                  played_at: new Date().toISOString(),
+                }),
+              },
+            );
+            return res.ok;
+          }
+        },
+        async getLeaderboard() {
+          const res = await fetch(
+            `${SUPABASE_URL}/rest/v1/scores?select=username,correct_answers,time_ms,composite_score,played_at&order=composite_score.desc&limit=20`,
+            { headers: sb.headers() },
+          );
+          return res.ok ? res.json() : [];
+        },
+      };
+
+      // ─── HELPERS ─────────────────────────────────────────────────────────────
+      const MAX_LIVES = 3;
+      const PHASES = {
+        LOGIN: "login",
+        IDLE: "idle",
+        PLAYING: "playing",
+        OVER: "over",
+        BOARD: "board",
+      };
+
+      function generateQuestion() {
+        const a = Math.floor(Math.random() * 50) + 1;
+        const b = Math.floor(Math.random() * 50) + 1;
+        return { a, b, answer: a + b };
+      }
+      function formatTime(ms) {
+        const s = Math.floor(ms / 1000);
+        const m = Math.floor(s / 60)
+          .toString()
+          .padStart(2, "0");
+        const sec = (s % 60).toString().padStart(2, "0");
+        const cs = Math.floor((ms % 1000) / 10)
+          .toString()
+          .padStart(2, "0");
+        return `${m}:${sec}.${cs}`;
+      }
+      function calcComposite(correct, ms) {
+        return Math.floor((correct * correct * 1000) / (ms / 1000 + 1));
+      }
+
+      // ─── COMPONENTS ──────────────────────────────────────────────────────────
+      function AweSumLogo({ size = 48 }) {
+        return (
+          <svg
+            width={size * 3.2}
+            height={size * 0.9}
+            viewBox="0 0 192 54"
+            fill="none"
+          >
+            <text
+              x="0"
+              y="44"
+              fontFamily="'Arial Black', Arial, sans-serif"
+              fontWeight="900"
+              fontSize="46"
+              fill="white"
+            >
+              awe
+            </text>
+            <text
+              x="108"
+              y="44"
+              fontFamily="'Arial Black', Arial, sans-serif"
+              fontWeight="900"
+              fontSize="46"
+              fill="#FF3333"
+            >
+              Sum
+            </text>
+          </svg>
+        );
+      }
+
+      function CorrectBurst({ origin }) {
+        if (!origin) return null;
+        const colors = [
+          "#FF3333",
+          "#ff6b6b",
+          "#ffffff",
+          "#ffd60a",
+          "#FF3333",
+          "#ffffff",
+        ];
+        return Array.from({ length: 16 }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              position: "fixed",
+              left: origin.x,
+              top: origin.y,
+              width: 6 + (i % 3) * 3,
+              height: 6 + (i % 3) * 3,
+              borderRadius: "50%",
+              background: colors[i % colors.length],
+              boxShadow: `0 0 8px ${colors[i % colors.length]}`,
+              pointerEvents: "none",
+              zIndex: 9999,
+              animation: "burst 0.6s ease-out forwards",
+              "--angle": `${(360 / 16) * i + (i % 2) * 8}deg`,
+              "--dist": `${48 + (i % 4) * 14}px`,
+            }}
+          />
+        ));
+      }
+
+      function Medal({ rank }) {
+        if (rank === 1) return <span style={{ fontSize: 20 }}>🥇</span>;
+        if (rank === 2) return <span style={{ fontSize: 20 }}>🥈</span>;
+        if (rank === 3) return <span style={{ fontSize: 20 }}>🥉</span>;
+        return (
+          <span style={{ color: "#888", fontWeight: 700, fontSize: 14 }}>
+            {rank}
+          </span>
+        );
+      }
+
+      // ─── MAIN APP ─────────────────────────────────────────────────────────────
+      function AweSUM() {
+        const [authMode, setAuthMode] = useState("login");
+        const [usernameInput, setUsernameInput] = useState("");
+        const [passwordInput, setPasswordInput] = useState("");
+        const [authError, setAuthError] = useState("");
+        const [authLoading, setAuthLoading] = useState(false);
+        const [user, setUser] = useState(null);
+
+        const [phase, setPhase] = useState(PHASES.LOGIN);
+        const [question, setQuestion] = useState(null);
+        const [input, setInput] = useState("");
+        const [score, setScore] = useState(0);
+        const [lives, setLives] = useState(MAX_LIVES);
+        const [flash, setFlash] = useState(null);
+        const [elapsed, setElapsed] = useState(0);
+        const [log, setLog] = useState([]);
+        const [showLog, setShowLog] = useState(false);
+        const [shake, setShake] = useState(false);
+        const [burst, setBurst] = useState(null);
+        const [scoreAnim, setScoreAnim] = useState(false);
+
+        const [myComposite, setMyComposite] = useState(null);
+        const [myRank, setMyRank] = useState(null);
+        const [leaderboard, setLeaderboard] = useState([]);
+        const [boardLoading, setBoardLoading] = useState(false);
+        const [saveStatus, setSaveStatus] = useState(null);
+
+        const startTimeRef = useRef(null);
+        const timerRef = useRef(null);
+        const qBoxRef = useRef(null);
+        const logRef = useRef(null);
+        const processingRef = useRef(false);
+        const finalScoreRef = useRef(0);
+        const finalElapsedRef = useRef(0);
+
+        // AUTH
+        const handleAuth = async () => {
+          const u = usernameInput.trim();
+          const p = passwordInput.trim();
+          if (!u || !p) {
+            setAuthError("Please fill in both fields.");
+            return;
+          }
+          if (u.length < 3) {
+            setAuthError("Username must be at least 3 characters.");
+            return;
+          }
+          if (p.length < 6) {
+            setAuthError("Password must be at least 6 characters.");
+            return;
+          }
+          setAuthLoading(true);
+          setAuthError("");
+          try {
+            let data;
+            if (authMode === "signup") {
+              data = await sb.signUp(u, p);
+              if (data.error || data.msg) {
+                setAuthError(
+                  data.error_description || data.msg || "Signup failed.",
+                );
+                setAuthLoading(false);
+                return;
+              }
+              data = await sb.signIn(u, p);
+            } else {
+              data = await sb.signIn(u, p);
+            }
+            if (data.error || !data.access_token) {
+              setAuthError(
+                data.error_description || "Invalid username or password.",
+              );
+              setAuthLoading(false);
+              return;
+            }
+            setUser({
+              token: data.access_token,
+              userId: data.user.id,
+              username: data.user.user_metadata?.username || u,
+            });
+            setPhase(PHASES.IDLE);
+          } catch (e) {
+            setAuthError("Connection error. Check your Supabase config.");
+          }
+          setAuthLoading(false);
+        };
+
+        const handleLogout = () => {
+          setUser(null);
+          setPhase(PHASES.LOGIN);
+          setUsernameInput("");
+          setPasswordInput("");
+          setAuthError("");
+          clearInterval(timerRef.current);
+        };
+
+        // GAME
+        const nextQuestion = useCallback(() => {
+          setQuestion(generateQuestion());
+          setInput("");
+          setFlash(null);
+          processingRef.current = false;
+        }, []);
+
+        const startGame = () => {
+          setScore(0);
+          setLives(MAX_LIVES);
+          setElapsed(0);
+          setLog([]);
+          setFlash(null);
+          setBurst(null);
+          setSaveStatus(null);
+          setMyRank(null);
+          processingRef.current = false;
+          setPhase(PHASES.PLAYING);
+          startTimeRef.current = Date.now();
+          timerRef.current = setInterval(
+            () => setElapsed(Date.now() - startTimeRef.current),
+            50,
+          );
+          setQuestion(generateQuestion());
+        };
+
+        const endGame = useCallback((fs) => {
+          clearInterval(timerRef.current);
+          const ms = Date.now() - startTimeRef.current;
+          finalElapsedRef.current = ms;
+          finalScoreRef.current = fs;
+          setElapsed(ms);
+          setMyComposite(calcComposite(fs, ms));
+          setPhase(PHASES.OVER);
+        }, []);
+
+        const handleSubmit = useCallback(() => {
+          if (!input.trim() || !question || processingRef.current) return;
+          processingRef.current = true;
+          const ans = parseInt(input.trim(), 10);
+          const ok = ans === question.answer;
+          setLog((prev) => [
+            ...prev,
+            {
+              q: `${question.a} + ${question.b}`,
+              correct: question.answer,
+              given: ans,
+              ok,
+              time: formatTime(Date.now() - startTimeRef.current),
+            },
+          ]);
+          setFlash(ok ? "correct" : "wrong");
+          if (ok) {
+            if (qBoxRef.current) {
+              const r = qBoxRef.current.getBoundingClientRect();
+              setBurst({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+              setTimeout(() => setBurst(null), 700);
+            }
+            setScoreAnim(true);
+            setTimeout(() => setScoreAnim(false), 420);
+            setScore((prev) => {
+              setTimeout(nextQuestion, 480);
+              return prev + 1;
+            });
+          } else {
+            setShake(true);
+            setTimeout(() => setShake(false), 500);
+            setLives((prev) => {
+              const next = prev - 1;
+              if (next <= 0) {
+                setScore((sc) => {
+                  setTimeout(() => endGame(sc), 600);
+                  return sc;
+                });
+              } else {
+                setTimeout(nextQuestion, 520);
+              }
+              return next;
+            });
+          }
+        }, [input, question, nextQuestion, endGame]);
+
+        const handleNumKey = (val) => {
+          if (processingRef.current) return;
+          if (val === "⌫") setInput((p) => p.slice(0, -1));
+          else if (val === "OK") handleSubmit();
+          else setInput((p) => (p.length < 4 ? p + val : p));
+        };
+
+        // LEADERBOARD
+        const handleSaveAndBoard = async () => {
+          setSaveStatus("saving");
+          setBoardLoading(true);
+          const composite = calcComposite(
+            finalScoreRef.current,
+            finalElapsedRef.current,
+          );
+          try {
+            const ok = await sb.upsertScore(
+              user.token,
+              user.userId,
+              user.username,
+              finalScoreRef.current,
+              finalElapsedRef.current,
+              composite,
+            );
+            setSaveStatus(ok ? "saved" : "error");
+          } catch (e) {
+            setSaveStatus("error");
+          }
+          const board = await sb.getLeaderboard();
+          setLeaderboard(board);
+          const rank =
+            board.findIndex(
+              (e) => e.username.toLowerCase() === user.username.toLowerCase(),
+            ) + 1;
+          setMyRank(rank > 0 ? rank : null);
+          setBoardLoading(false);
+          setPhase(PHASES.BOARD);
+        };
+
+        const handleViewBoard = async () => {
+          setBoardLoading(true);
+          setPhase(PHASES.BOARD);
+          const board = await sb.getLeaderboard();
+          setLeaderboard(board);
+          setBoardLoading(false);
+        };
+
+        useEffect(() => {
+          if (showLog && logRef.current)
+            logRef.current.scrollTop = logRef.current.scrollHeight;
+        }, [log, showLog]);
+        useEffect(() => () => clearInterval(timerRef.current), []);
+
+        const heartIcons = Array.from(
+          { length: MAX_LIVES },
+          (_, i) => i < lives,
+        );
+        const numpadKeys = [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "⌫",
+          "0",
+          "OK",
+        ];
+
+        // ── STYLES ──
+        const C = {
+          red: "#FF3333",
+          bg: "#0a0a0a",
+          card: "#141414",
+          border: "#222",
+          text: "#fff",
+          muted: "#888",
+        };
+
+        const screen = {
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "24px 16px 32px",
+          maxWidth: 420,
+          margin: "0 auto",
+        };
+        const primaryBtn = {
+          width: "100%",
+          padding: "16px",
+          background: C.red,
+          color: "#fff",
+          border: "none",
+          borderRadius: 12,
+          fontSize: 16,
+          fontWeight: 900,
+          letterSpacing: 1,
+          cursor: "pointer",
+          marginTop: 12,
+        };
+        const ghostBtn = {
+          width: "100%",
+          padding: "14px",
+          background: "transparent",
+          color: "#fff",
+          border: `1.5px solid ${C.border}`,
+          borderRadius: 12,
+          fontSize: 15,
+          fontWeight: 700,
+          cursor: "pointer",
+          marginTop: 8,
+        };
+
+        return (
+          <div style={{ background: C.bg, minHeight: "100vh" }}>
+            <CorrectBurst origin={burst} />
+
+            {/* ── LOGIN ── */}
+            {phase === PHASES.LOGIN && (
+              <div style={screen} className="fade-in">
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginBottom: 32,
+                    marginTop: 32,
+                  }}
+                >
+                  <AweSumLogo size={52} />
+                  <p
+                    style={{
+                      color: C.muted,
+                      marginTop: 12,
+                      fontSize: 14,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    The addition game that
+                    <br />
+                    rewards speed & accuracy.
+                  </p>
+                </div>
+
+                <div
+                  style={{
+                    width: "100%",
+                    background: C.card,
+                    borderRadius: 16,
+                    padding: 24,
+                    border: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      marginBottom: 20,
+                      background: "#0a0a0a",
+                      borderRadius: 10,
+                      padding: 4,
+                    }}
+                  >
+                    {["login", "signup"].map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setAuthMode(m);
+                          setAuthError("");
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "10px",
+                          border: "none",
+                          borderRadius: 8,
+                          fontSize: 13,
+                          fontWeight: 800,
+                          letterSpacing: 1,
+                          cursor: "pointer",
+                          background: authMode === m ? C.red : "transparent",
+                          color: authMode === m ? "#fff" : C.muted,
+                        }}
+                      >
+                        {m === "login" ? "LOG IN" : "SIGN UP"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {["text", "password"].map((type, i) => (
+                    <input
+                      key={type}
+                      style={{
+                        width: "100%",
+                        padding: "14px 16px",
+                        background: "#0a0a0a",
+                        border: `1.5px solid ${C.border}`,
+                        borderRadius: 10,
+                        color: "#fff",
+                        fontSize: 15,
+                        marginBottom: 12,
+                        outline: "none",
+                      }}
+                      type={type}
+                      placeholder={i === 0 ? "Username" : "Password"}
+                      value={i === 0 ? usernameInput : passwordInput}
+                      onChange={(e) =>
+                        i === 0
+                          ? setUsernameInput(e.target.value)
+                          : setPasswordInput(e.target.value)
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleAuth()}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                    />
+                  ))}
+
+                  {authError && (
+                    <div
+                      style={{
+                        color: "#ff4444",
+                        fontSize: 13,
+                        marginBottom: 10,
+                        textAlign: "center",
+                      }}
+                    >
+                      {authError}
+                    </div>
+                  )}
+
+                  <button
+                    style={primaryBtn}
+                    onClick={handleAuth}
+                    disabled={authLoading}
+                    className={!authLoading ? "pulse-btn" : ""}
+                  >
+                    {authLoading
+                      ? "..."
+                      : authMode === "login"
+                        ? "LOG IN →"
+                        : "CREATE ACCOUNT →"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── IDLE ── */}
+            {phase === PHASES.IDLE && (
+              <div style={screen} className="fade-in">
+                <div
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 32,
+                  }}
+                >
+                  <AweSumLogo size={32} />
+                  <button
+                    onClick={handleLogout}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: C.muted,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    logout
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    marginBottom: 28,
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  Hey, <span style={{ color: C.red }}>{user?.username}</span> 👋
+                </div>
+
+                <div
+                  style={{
+                    width: "100%",
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                    marginBottom: 28,
+                  }}
+                >
+                  {[
+                    ["✅", "Correct → +1 point"],
+                    ["❌", "Wrong → −1 life"],
+                    ["💀", "0 lives → Game Over"],
+                    ["⚡", "Score = accuracy × speed"],
+                  ].map(([icon, text]) => (
+                    <div
+                      key={text}
+                      style={{
+                        background: C.card,
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 12,
+                        padding: "14px 12px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <span style={{ fontSize: 20 }}>{icon}</span>
+                      <span
+                        style={{ fontSize: 12, color: "#ccc", lineHeight: 1.4 }}
+                      >
+                        {text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  style={primaryBtn}
+                  onClick={startGame}
+                  className="pulse-btn"
+                >
+                  PLAY NOW
+                </button>
+                <button style={ghostBtn} onClick={handleViewBoard}>
+                  🏆 LEADERBOARD
+                </button>
+              </div>
+            )}
+
+            {/* ── PLAYING ── */}
+            {phase === PHASES.PLAYING && (
+              <div style={screen}>
+                <div
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 24,
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {heartIcons.map((alive, i) => (
+                      <span
+                        key={i}
+                        className={!alive ? "heart-lost" : ""}
+                        style={{
+                          fontSize: 22,
+                          opacity: alive ? 1 : 0.18,
+                          color: C.red,
+                        }}
+                      >
+                        ♥
+                      </span>
+                    ))}
+                  </div>
+                  <div
+                    style={{
+                      background: C.card,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 20,
+                      padding: "6px 14px",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    ⏱ {formatTime(elapsed)}
+                  </div>
+                  <div
+                    style={{
+                      background: C.card,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 20,
+                      padding: "6px 14px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div
+                      style={{ fontSize: 9, color: C.muted, letterSpacing: 1 }}
+                    >
+                      PTS
+                    </div>
+                    <div
+                      className={scoreAnim ? "score-pop" : ""}
+                      style={{ fontSize: 18, fontWeight: 900 }}
+                    >
+                      {score}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  ref={qBoxRef}
+                  className={
+                    shake ? "shake" : flash === "correct" ? "correct-pop" : ""
+                  }
+                  style={{
+                    width: "100%",
+                    background: C.card,
+                    border: `2px solid ${flash === "correct" ? C.red : flash === "wrong" ? "#ff2d55" : C.border}`,
+                    boxShadow:
+                      flash === "correct"
+                        ? `0 0 40px #FF333355`
+                        : flash === "wrong"
+                          ? "0 0 40px #ff2d5540"
+                          : "none",
+                    borderRadius: 20,
+                    padding: "32px 16px",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: 12,
+                    marginBottom: 12,
+                  }}
+                >
+                  <span style={{ fontSize: 48, fontWeight: 900 }}>
+                    {question?.a}
+                  </span>
+                  <span style={{ fontSize: 36, color: C.muted }}>+</span>
+                  <span style={{ fontSize: 48, fontWeight: 900 }}>
+                    {question?.b}
+                  </span>
+                  <span style={{ fontSize: 36, color: C.muted }}>=</span>
+                  <span
+                    style={{
+                      fontSize: 48,
+                      fontWeight: 900,
+                      color: input ? "#fff" : C.red,
+                      minWidth: 60,
+                      textAlign: "center",
+                    }}
+                  >
+                    {input || "?"}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    height: 24,
+                    fontSize: 15,
+                    fontWeight: 800,
+                    letterSpacing: 1,
+                    marginBottom: 16,
+                    opacity: flash ? 1 : 0,
+                    color: flash === "correct" ? C.red : "#ff2d55",
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {flash === "correct" ? "✓  CORRECT!" : "✗  WRONG!"}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 10,
+                    width: "100%",
+                    marginBottom: 16,
+                  }}
+                >
+                  {numpadKeys.map((k) => (
+                    <button
+                      key={k}
+                      onClick={() => handleNumKey(k)}
+                      style={{
+                        padding: "18px 0",
+                        fontSize: k === "OK" || k === "⌫" ? 15 : 22,
+                        fontWeight: 800,
+                        border: "none",
+                        borderRadius: 12,
+                        cursor: "pointer",
+                        background:
+                          k === "OK"
+                            ? C.red
+                            : k === "⌫"
+                              ? "#1e1e1e"
+                              : "#1a1a1a",
+                        color: "#fff",
+                        gridColumn: k === "OK" ? "span 1" : "span 1",
+                      }}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setShowLog((v) => !v)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: C.muted,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    letterSpacing: 1,
+                  }}
+                >
+                  {showLog ? "▲ HIDE LOG" : "▼ SHOW LOG"}
+                </button>
+                {showLog && (
+                  <div
+                    ref={logRef}
+                    style={{
+                      width: "100%",
+                      maxHeight: 160,
+                      overflowY: "auto",
+                      marginTop: 8,
+                      background: C.card,
+                      borderRadius: 10,
+                      padding: 10,
+                    }}
+                  >
+                    {log.length === 0 && (
+                      <div
+                        style={{
+                          color: C.muted,
+                          fontSize: 13,
+                          textAlign: "center",
+                        }}
+                      >
+                        No answers yet
+                      </div>
+                    )}
+                    {log.map((e, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "5px 0",
+                          borderLeft: `3px solid ${e.ok ? C.red : "#333"}`,
+                          paddingLeft: 10,
+                          marginBottom: 4,
+                          fontSize: 13,
+                        }}
+                      >
+                        <span style={{ color: C.muted }}>#{i + 1}</span>
+                        <span>{e.q}</span>
+                        <span style={{ color: e.ok ? C.red : C.muted }}>
+                          {e.ok ? `= ${e.correct}` : `✗ ${e.given}`}
+                        </span>
+                        <span
+                          style={{ color: C.muted, fontFamily: "monospace" }}
+                        >
+                          {e.time}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── GAME OVER ── */}
+            {phase === PHASES.OVER && (
+              <div style={screen} className="fade-in">
+                <div
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 24,
+                  }}
+                >
+                  <AweSumLogo size={28} />
+                  <button
+                    onClick={handleLogout}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: C.muted,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    logout
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 52,
+                    fontWeight: 900,
+                    letterSpacing: 2,
+                    textAlign: "center",
+                    lineHeight: 1.1,
+                    marginBottom: 24,
+                  }}
+                >
+                  GAME
+                  <br />
+                  OVER
+                </div>
+
+                <div
+                  style={{
+                    width: "100%",
+                    background: C.card,
+                    border: `2px solid ${C.red}`,
+                    borderRadius: 16,
+                    padding: "20px",
+                    textAlign: "center",
+                    marginBottom: 20,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: C.muted,
+                      letterSpacing: 2,
+                      marginBottom: 6,
+                    }}
+                  >
+                    COMPOSITE SCORE
+                  </div>
+                  <div style={{ fontSize: 52, fontWeight: 900, color: C.red }}>
+                    {myComposite?.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
+                    {finalScoreRef.current} correct ·{" "}
+                    {formatTime(finalElapsedRef.current)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                    width: "100%",
+                    marginBottom: 20,
+                  }}
+                >
+                  {[
+                    ["CORRECT", finalScoreRef.current],
+                    ["TIME", formatTime(finalElapsedRef.current)],
+                    ["ROUNDS", log.length],
+                    [
+                      "ACCURACY",
+                      log.length > 0
+                        ? `${Math.round((finalScoreRef.current / log.length) * 100)}%`
+                        : "—",
+                    ],
+                  ].map(([label, val]) => (
+                    <div
+                      key={label}
+                      style={{
+                        background: C.card,
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 12,
+                        padding: "16px",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: C.muted,
+                          letterSpacing: 1.5,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {label}
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 900 }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  style={primaryBtn}
+                  onClick={handleSaveAndBoard}
+                  disabled={saveStatus === "saving"}
+                >
+                  {saveStatus === "saving"
+                    ? "SAVING..."
+                    : "🏆 SAVE & LEADERBOARD"}
+                </button>
+                <button style={ghostBtn} onClick={startGame}>
+                  PLAY AGAIN
+                </button>
+              </div>
+            )}
+
+            {/* ── LEADERBOARD ── */}
+            {phase === PHASES.BOARD && (
+              <div style={screen} className="fade-in">
+                <div
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 24,
+                  }}
+                >
+                  <AweSumLogo size={28} />
+                  <button
+                    onClick={handleLogout}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: C.muted,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    logout
+                  </button>
+                </div>
+
+                <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 4 }}>
+                  🏆 LEADERBOARD
+                </div>
+                {myRank && (
+                  <div
+                    style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}
+                  >
+                    Your rank:{" "}
+                    <span style={{ color: C.red, fontWeight: 700 }}>
+                      #{myRank}
+                    </span>
+                  </div>
+                )}
+                {!myRank && <div style={{ marginBottom: 20 }} />}
+
+                {boardLoading ? (
+                  <div style={{ color: C.muted, marginTop: 40 }}>
+                    Loading...
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    {leaderboard.map((entry, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          background:
+                            user &&
+                            entry.username.toLowerCase() ===
+                              user.username.toLowerCase()
+                              ? "#1a0000"
+                              : C.card,
+                          border: `1px solid ${user && entry.username.toLowerCase() === user.username.toLowerCase() ? C.red : C.border}`,
+                          borderRadius: 12,
+                          padding: "12px 16px",
+                        }}
+                      >
+                        <div style={{ width: 28, textAlign: "center" }}>
+                          <Medal rank={i + 1} />
+                        </div>
+                        <div style={{ flex: 1, fontWeight: 700, fontSize: 15 }}>
+                          {entry.username}
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div
+                            style={{
+                              color: C.red,
+                              fontWeight: 900,
+                              fontSize: 17,
+                            }}
+                          >
+                            {entry.composite_score.toLocaleString()}
+                          </div>
+                          <div style={{ color: C.muted, fontSize: 11 }}>
+                            {entry.correct_answers} correct ·{" "}
+                            {formatTime(entry.time_ms)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {leaderboard.length === 0 && (
+                      <div
+                        style={{
+                          color: C.muted,
+                          textAlign: "center",
+                          marginTop: 32,
+                        }}
+                      >
+                        No scores yet. Be the first!
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  style={{ ...primaryBtn, marginTop: 24 }}
+                  onClick={startGame}
+                >
+                  PLAY AGAIN
+                </button>
+                <button style={ghostBtn} onClick={() => setPhase(PHASES.IDLE)}>
+                  ← BACK
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<AweSUM />);
+    </script>
   </body>
 </html>
