@@ -1,0 +1,7 @@
+A blank white screen on Black Friday is the worst kind of error message — because it isn't one.
+
+TalktoWP catches the WSOD the moment it happens and tells you exactly which plugin update broke it, in plain English.
+
+Free on WordPress.org. Link in bio.
+
+#WordPress #WordPressAgency #WebDev #SiteMonitoring #WSOD #WordPressMaintenance #BlackFriday #WPAgency
